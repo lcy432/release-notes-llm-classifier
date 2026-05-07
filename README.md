@@ -68,7 +68,7 @@ directly in the timeline:
 ![Update timeline](output/figures/02_update_timeline.png)
 
 ## Repository layout
-.
+```
 ├── README.md
 ├── data/
 │   ├── raw/
@@ -87,7 +87,7 @@ directly in the timeline:
 ├── 02_collect_data.ipynb     # Data collection (iTunes / Wayback / APKMirror / Google Play)
 ├── 03_llm_classify.ipynb     # Prompt design + DeepSeek classification
 └── 04_descriptive_stats.ipynb # Plots used in the summary
-
+```
 ## Key engineering choices
 
 - **Network fetches use retry with exponential backoff embedded in the
