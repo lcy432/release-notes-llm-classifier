@@ -1,22 +1,40 @@
-# WLIURA S26 — App Update History Dataset
+# Release-Notes LLM Classifier
 
-A dataset of mobile app version histories with LLM-classified update
-categories, built as the test task for the WLIURA S26 Research Assistant
-position with Prof. Bo Bian (UBC Sauder School of Business, Finance Division).
+A research dataset of mobile app version histories from 10 popular apps across
+iOS and Android, with each release classified into a closed set of update
+categories using a zero-shot LLM classifier. Built as the test task for the
+WLIURA S26 Research Assistant position with Prof. Bo Bian (UBC Sauder School
+of Business).
 
-**Final dataset:** 85 rows (10 apps × 2 platforms × multiple versions),
-covering releases from 2008-07-11 to 2026-05-06.
+**Final dataset:** 85 deduplicated rows (10 apps × 2 platforms × multiple
+versions), covering releases from 2008-07-11 to 2026-05-06.
 
-📊 [View the methodology and findings summary →](SUMMARY.md)
+📊 [Final spreadsheet (Excel) →](output/app_updates.xlsx)
+The Excel file's `methodology_summary` sheet contains the full deliverable
+summary required by the task brief.
 
-📁 [Final spreadsheet (Excel) →](output/app_updates.xlsx)
+---
+
+## Headline finding
+
+Across **50 category-label instances** spanning 2008–2026, `ai_features` and
+`privacy_data_policy` were assigned **zero times**. This includes ChatGPT,
+whose six classified Android updates contain only "Minor fixes and
+improvements" boilerplate.
+
+**App release-notes text appears to function more as a brand-voice channel
+than as a regulatory-disclosure channel** — with direct implications for
+empirical research designs that treat release-notes language as a proxy for
+actual privacy or AI changes.
+
+![Category composition per app](output/figures/03_category_per_app.png)
 
 ---
 
 ## What this is
 
-Each row is a single `(app, platform, version)` observation with 13 fields
-specified in the task brief:
+Each row is a single `(app, platform, version)` observation with the 13
+fields specified in the task brief:
 
 | # | Field | Source |
 |---|---|---|
@@ -30,19 +48,32 @@ specified in the task brief:
 | 8 | `initial_release` | iTunes API only (Android proxying not used) |
 | 9 | `release_notes` | Original disclosure text |
 | 10 | `categories` | **LLM-classified** (closed set of 10) |
-| 11 | `llm_summary` | **LLM-generated** standardized summary, 5-15 words |
+| 11 | `llm_summary` | **LLM-generated** standardized summary, 5–15 words |
 | 12 | `confidence` | LLM self-rated, for downstream auditing |
 | 13 | `source_url` | Direct link to the source page |
 | + | `data_quality_note` | Provenance and known limitations per row |
 
+## Coverage and confidence
+
+iOS coverage skews toward older history (Wayback Machine) while Android
+coverage is heavily recent (APKMirror's recent-only listings). Five Android
+apps are blocked by Cloudflare on APKMirror; this is documented per-row in
+`data_quality_note`.
+
+![Coverage and confidence](output/figures/01_coverage_and_confidence.png)
+
+The structural non-overlap of iOS and Android time windows is visible
+directly in the timeline:
+
+![Update timeline](output/figures/02_update_timeline.png)
+
 ## Repository layout
 .
-├── SUMMARY.md                    # Methodology, findings, limitations (the deliverable)
-├── README.md                     # This file
+├── README.md
 ├── data/
 │   ├── raw/
 │   │   ├── current_versions.csv          # iTunes API + google-play-scraper output
-│   │   ├── dataset_pre_llm.csv           # All 90 rows before LLM classification
+│   │   ├── dataset_pre_llm.csv           # All rows before LLM classification
 │   │   └── llm_results_partial.csv       # LLM checkpoint (resume-safe)
 │   └── processed/
 │       └── app_updates_labeled.csv       # Final labeled dataset
@@ -55,7 +86,7 @@ specified in the task brief:
 └── notebooks/
 ├── 02_collect_data.ipynb     # Data collection (iTunes / Wayback / APKMirror / Google Play)
 ├── 03_llm_classify.ipynb     # Prompt design + DeepSeek classification
-└── 04_descriptive_stats.ipynb # Plots used in SUMMARY.md
+└── 04_descriptive_stats.ipynb # Plots used in the summary
 
 ## Key engineering choices
 
@@ -63,8 +94,8 @@ specified in the task brief:
   fetch function itself**, not as separate compensation logic — making
   collection re-runnable and idempotent.
 - **Disk checkpoints every 10 LLM calls**: the batch classifier writes
-  partial results to CSV every 10 rows. A network interruption costs
-  at most 10 calls, and re-running the cell automatically skips already
+  partial results to CSV every 10 rows. A network interruption costs at
+  most 10 calls, and re-running the cell automatically skips already
   classified rows.
 - **Stratified temporal sampling** for Android historical versions: pull
   ~500 candidates from APKMirror, sample 6 per app evenly across the date
@@ -73,23 +104,27 @@ specified in the task brief:
   even when they include markdown code fences or leading/trailing prose.
   Schema validation downgrades any unrecognized category to `other`
   rather than crashing.
-- **Multi-pattern HTML parsing for archived pages**: App Store page HTML
-  changed significantly between 2008-2026. Three fallback regex patterns
-  cover most snapshot eras without crashing on the rest.
+- **Anti-prior-bias rule (Rule 7)** in the LLM prompt: the model is
+  explicitly instructed to classify based on the release-note text alone,
+  not on prior knowledge of the company. Without this, ChatGPT updates
+  risked spurious `ai_features` labels purely from company association.
+- **Multi-pattern HTML parsing for archived pages**: App Store HTML
+  structure changed significantly between 2008 and 2026. Three fallback
+  regex patterns cover most snapshot eras without crashing on the rest.
 - **`.env` for API keys, `.gitignore` configured to exclude it.**
 
-## Data sources used
+## Data sources
 
 | Source | Status | Coverage |
 |---|---|---|
 | iTunes Lookup API (`itunes.apple.com/lookup`) | Official, public | 10/10 iOS apps |
 | `google-play-scraper` (Python package) | Web scraping, gentle | 10/10 Android apps |
 | Wayback Machine CDX API | Public, archival | iOS history 6/10 apps |
-| APKMirror (BeautifulSoup) | Web scraping; Cloudflare-blocked for 5/10 | Android history 5/10 apps |
+| APKMirror (BeautifulSoup) | Web scraping; Cloudflare blocks 5/10 | Android history 5/10 apps |
 | Google Play web HTML | Web scraping | Android current `release_notes` backfill |
 
-We deliberately did not use Apple's undocumented AMP `versionHistory` endpoint,
-preferring the fully-public Wayback Machine for transparency.
+We deliberately did **not** use Apple's undocumented AMP `versionHistory`
+endpoint, preferring the fully-public Wayback Machine for transparency.
 
 ## Reproducing
 
@@ -97,20 +132,10 @@ preferring the fully-public Wayback Machine for transparency.
 2. Create `.env` with `DEEPSEEK_API_KEY=sk-...`
 3. Run notebooks in order: `02_collect_data.ipynb` → `03_llm_classify.ipynb`
    → `04_descriptive_stats.ipynb`
-4. Outputs land in `output/`
+4. Outputs land in `output/`.
 
 LLM classification cost ≈ ¥0.05 (USD ~$0.01) at DeepSeek-V3 prices for the
 full 41-row run.
-
-## Headline finding (see SUMMARY.md for the full discussion)
-
-Across 50 category-label instances spanning 2008-2026, `ai_features` and
-`privacy_data_policy` were assigned **zero times**. This includes ChatGPT,
-whose six classified Android updates contain only "Minor fixes and
-improvements" boilerplate. **App release-notes text appears to function more
-as a brand-voice channel than as a regulatory-disclosure channel**, with
-direct implications for empirical research designs that treat
-release-notes language as a proxy for actual privacy or AI changes.
 
 ## License & attribution
 
